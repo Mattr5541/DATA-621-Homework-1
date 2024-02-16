@@ -1,0 +1,205 @@
+---
+title: "621 - Homework 1"
+output: pdf_document
+date: "2024-02-16"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(knitr)
+library(readr)
+library(ggplot2)
+library(tidyverse)
+library(missMethods)
+library(dplyr)
+library(naniar)
+library(MASS)
+```
+
+```{r}
+money_train <- read.csv("C:\\Users\\Black\\Documents\\DATA 621\\moneyball-training-data.csv")
+
+
+summary(money_train)
+```
+
+
+## Part 1
+
+```{r}
+
+```
+
+## Part 2: Mean Imputations for missing variables
+
+
+```{r}
+## Vars with missing observations include: TEAM_BATTING_SO; TEAM_BASERUN_SB; TEAM_BASERUN_CS; TEAM_BATTING_HBP; TEAM_PITCHING_SO; TEAM_FIELDING_DP
+###Team_BATTING_HBP contains over 2000 missing variables; everything else is within the range of 102-772
+
+####First, I will make indices to flag missing values 
+TEAM_BATTING_SO_index <- is.na(money_train$TEAM_BATTING_SO)  
+TEAM_BASERUN_SB_index <- is.na(money_train$TEAM_BASERUN_SB) 
+TEAM_BASERUN_CS_index <- is.na(money_train$TEAM_BASERUN_CS) 
+TEAM_BATTING_HBP_index <- is.na(money_train$TEAM_BATTING_HBP) 
+TEAM_PITCHING_SO_index <- is.na(money_train$TEAM_PITCHING_SO) 
+TEAM_FIELDING_DP_index <- is.na(money_train$TEAM_FIELDING_DP) 
+
+
+### And now to impute
+
+money_train_mod <- money_train %>% impute_mean()
+summary(money_train_mod)
+
+### Now I will compare some variables to see if the mean imputation worked
+money_train_comp <- money_train$TEAM_BATTING_SO
+
+data.frame(money_train_comp)
+
+money_train_comp <- money_train %>% select(INDEX, TEAM_BATTING_SO, TEAM_BATTING_HBP)
+money_train_mod_comp <- money_train_mod %>% select(INDEX, TEAM_BATTING_SO, TEAM_BATTING_HBP)
+  
+money_train_comp <- merge(money_train_comp, money_train_mod_comp, by = "INDEX")
+money_train_comp <- cbind(money_train_comp, TEAM_BATTING_SO_index)
+money_train_comp <- cbind(money_train_comp, TEAM_BATTING_HBP_index)
+
+ggplot(money_train_comp, aes(TEAM_BATTING_SO.y)) + geom_histogram()
+ggplot(money_train_comp, aes(TEAM_BATTING_HBP.y, color = TEAM_BATTING_HBP_index)) + geom_histogram() ##As we can see, this mean imputation method may not have 
+##been entirely appropriate for this variable, since such a large proportion was missing (~88%). Everything else should be fine. I suggest we discard this var
+##From our models, unless we decide to make a model using only the ~700 present observations, which could be interesting
+
+```
+
+### Investigate whether the assumptions for linear regression have been met for each variable
+
+```{r}
+##TARGET_WINS
+ggplot(money_train_mod, aes(TARGET_WINS)) + geom_histogram() #Moslty normal with some negative skew
+ggplot(money_train_mod, aes(sample = TARGET_WINS)) + stat_qq() + stat_qq_line()
+shapiro.test(money_train_mod$TARGET_WINS) #Test indicates violations in normality
+
+
+
+##TEAM_BATTING_H
+ggplot(money_train_mod, aes(TEAM_BATTING_H)) + geom_histogram() #Moslty normal with some positive skew
+ggplot(money_train_mod, aes(sample = TEAM_BATTING_H)) + stat_qq() + stat_qq_line()
+shapiro.test(money_train_mod$TEAM_BATTING_H) #Test indicates violations in normality
+
+##TEAM_BATTING_2B 
+ggplot(money_train_mod, aes(TEAM_BATTING_2B)) + geom_histogram() #Moslty normal, but appears to have some skew
+ggplot(money_train_mod, aes(sample = TEAM_BATTING_2B)) + stat_qq() + stat_qq_line()
+shapiro.test(money_train_mod$TEAM_BATTING_2B) #Test indicates violations in normality
+
+##TEAM_BATTING_3B 
+ggplot(money_train_mod, aes(TEAM_BATTING_3B)) + geom_histogram() #Definitely positively skewed
+ggplot(money_train_mod, aes(sample = TEAM_BATTING_3B)) + stat_qq() + stat_qq_line()
+shapiro.test(money_train_mod$TEAM_BATTING_3B) #Test indicates violations in normality
+
+##TEAM_BATTING_HR 
+ggplot(money_train_mod, aes(TEAM_BATTING_HR)) + geom_histogram() #Doesn't seem normally distributed
+ggplot(money_train_mod, aes(sample = TEAM_BATTING_HR)) + stat_qq() + stat_qq_line()
+shapiro.test(money_train_mod$TEAM_BATTING_HR) #Test indicates violations in normality
+
+##TEAM_BATTING_BB
+ggplot(money_train_mod, aes(TEAM_BATTING_BB)) + geom_histogram() #Negatively skewed
+ggplot(money_train_mod, aes(sample = TEAM_BATTING_BB)) + stat_qq() + stat_qq_line()
+shapiro.test(money_train_mod$TEAM_BATTING_BB) #Test indicates violations in normality
+
+##TEAM_BATTING_SO
+ggplot(money_train_mod, aes(TEAM_BATTING_SO)) + geom_histogram() #Seems approximately normal
+ggplot(money_train_mod, aes(sample = TEAM_BATTING_SO)) + stat_qq() + stat_qq_line()
+shapiro.test(money_train_mod$TEAM_BATTING_SO) #Test indicates violations in normality
+```
+```{r}
+par(mfrow=c(3,3))
+hist(money_train_mod$TARGET_WINS, main = "TARGET_WINS") #Appears mostly normal with some potential skew
+hist(money_train_mod$TEAM_BATTING_H, main ="TEAM_BATTING_H") #Positive skew is apparant
+hist(money_train_mod$TEAM_BATTING_2B, main ="TEAM_BATTING_2B") #Appears mostly normal
+hist(money_train_mod$TEAM_BATTING_3B, main ="TEAM_BATTING_3B") #Positive skew apparant
+hist(money_train_mod$TEAM_BATTING_HR, main ="TEAM_BATTING_HR") #Does not seem normally distributed
+hist(money_train_mod$TEAM_BATTING_BB, main ="TEAM_BATTING_BB") # Negative skew apparant
+hist(money_train_mod$TEAM_BATTING_SO, main ="TEAM_BATTING_SO") # Seems platykurtic
+hist(money_train_mod$TEAM_BASERUN_SB, main ="TEAM_BASERUN_SB") #Positive skew apparant
+hist(money_train_mod$TEAM_BASERUN_CS, main ="TEAM_BASERUN_CS") #Positive skew apparant
+hist(money_train_mod$TEAM_BATTING_HBP, main ="TEAM_BATTING_HBP") #Issues derived from imputation
+hist(money_train_mod$TEAM_PITCHING_H, main ="TEAM_PITCHING_H") #Heavy positive skew apparant
+hist(money_train_mod$TEAM_PITCHING_HR, main ="TEAM_PITCHING_HR") #Data do not seem normally distributed
+hist(money_train_mod$TEAM_PITCHING_BB, main ="TEAM_PITCHING_BB") #Heavy positive skew apparant
+hist(money_train_mod$TEAM_PITCHING_SO, main ="TEAM_PITCHING_SO") #Heavy positive skew apparant
+hist(money_train_mod$TEAM_FIELDING_E, main ="TEAM_FIELDING_E") #Heavy positive skew apparant
+hist(money_train_mod$TEAM_FIELDING_DP, main ="TEAM_FIELDING_DP") #Some negative skew apparant
+```
+### Correlation plots to test for collinearity among variables
+```{r}
+cor <- cor(money_train_mod)
+
+cor <- as.data.frame(cor)
+
+cor <- cor %>% mutate_all(~ ifelse(abs(.) < 0.5, NA, .))
+
+print(cor)
+```
+
+Most of the variables are not highly correlated, but there are some potential predictors that are ~ 50-60% correlated. Most concerningly would be the ~90% correltion between TEAM_PITCHING_HR and TEAM_BATTING_HR. Because of the very high correlation between these variables, it may be best to avoid using them in the same model. Otherwise, it may be necessary to transform the variables via mean centering or PCA.
+
+### Transformations & Outlier Removal (WE MAY NOT NEED THIS IF WE CHOOSE TO GO THE BOX-COX ROUTE; IF WE GO THE OUTLIER REMOVAL ROUTE, WE SHOULD BE SELECTIVE
+### ABOUT WHICH OUTLIERS WE REMOVE)
+Because some variables are heavily affected by negative skew, we can systematically remove outliers that are present
+```{r}
+money_train_mod <- money_train_mod %>% mutate(log_TEAM_FIELDING_E = log(TEAM_FIELDING_E))
+money_train_mod <- money_train_mod %>% mutate(log_TEAM_PITCHING_H = log(TEAM_PITCHING_H))
+money_train_mod <- money_train_mod %>% mutate(log_TEAM_PITCHING_BB = log(TEAM_PITCHING_BB))
+money_train_mod <- money_train_mod %>% mutate(log_TEAM_PITCHING_SO = log(TEAM_PITCHING_SO))
+
+
+
+hist(money_train_mod$log_TEAM_FIELDING_E)
+hist(money_train_mod$log_TEAM_PITCHING_H)
+hist(money_train_mod$log_TEAM_PITCHING_BB)
+hist(money_train_mod$log_TEAM_PITCHING_SO)
+
+
+##############If we go this route, modify the outlier removal in accordance with the models you intend to build, otherwise, everything could end up being deleted
+##############Box-Cox transformations may be more appropriate for some of the less skewed variables
+outliers_Fielding <- boxplot(money_train_mod$log_TEAM_FIELDING_E, plot = F)$out
+outliers_pitching_H <- boxplot(money_train_mod$log_TEAM_PITCHING_H, plot = F)$out
+outliers_pitching_BB <- boxplot(money_train_mod$log_TEAM_PITCHING_BB, plot = F)$out
+outliers_pitching_SO <- boxplot(money_train_mod$log_TEAM_PITCHING_SO, plot = F)$out
+outliers_baserun_cs <- boxplot(money_train_mod$TEAM_BASERUN_CS, plot = F)$out
+outliers_baserun_sb <- boxplot(money_train_mod$TEAM_BASERUN_SB, plot = F)$out
+outliers_batting_so <- boxplot(money_train_mod$TEAM_BATTING_SO, plot = F)$out
+outliers_batting_bb <- boxplot(money_train_mod$TEAM_BATTING_BB, plot = F)$out
+outliers_batting_3b <- boxplot(money_train_mod$TEAM_BATTING_3B, plot = F)$out
+
+
+
+
+money_train_mod_2 <- money_train_mod
+money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$log_TEAM_FIELDING_E %in% outliers_Fielding),]
+money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$log_TEAM_PITCHING_H %in% outliers_pitching_H),]
+money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$log_TEAM_PITCHING_BB %in% outliers_pitching_BB),]
+money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$log_TEAM_PITCHING_SO %in% outliers_pitching_SO),]
+money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$TEAM_BASERUN_CS %in% outliers_baserun_cs),]
+money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$TEAM_BASERUN_SB %in% outliers_baserun_sb),]
+money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$TEAM_BASERUN_SO %in% outliers_batting_so),]
+money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$TEAM_BASERUN_BB %in% outliers_batting_bb),]
+money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$TEAM_BASERUN_3B %in% outliers_batting_3b),]
+
+par(mfrow=c(3,3))
+hist(money_train_mod_2$log_TEAM_FIELDING_E)
+hist(money_train_mod_2$log_TEAM_PITCHING_H)
+hist(money_train_mod_2$log_TEAM_PITCHING_BB)
+hist(money_train_mod_2$log_TEAM_PITCHING_SO)
+hist(money_train_mod_2$TEAM_BASERUN_CS)
+hist(money_train_mod_2$TEAM_BASERUN_SO)
+hist(money_train_mod_2$TEAM_BASERUN_BB)
+hist(money_train_mod_2$TEAM_BASERUN_3B)
+
+```
+## Part 3
+```{r}
+###Use a variation of this code if you intend to use a Box-Cox transformation
+#boxcox(outcome ~ predictors, data = money_train_mod_2)
+```
+
