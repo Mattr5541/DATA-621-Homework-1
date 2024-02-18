@@ -15,15 +15,18 @@ library(missMethods)
 library(dplyr)
 library(naniar)
 library(MASS)
+library(ggfortify)
+library(glmnet)
+
+set.seed(621)
 ```
 
 ```{r}
-money_train <- read.csv("C:\\Users\\Black\\Documents\\DATA 621\\moneyball-training-data.csv")
+money_train <- read.csv(url("https://raw.githubusercontent.com/Mattr5541/DATA-621-Homework-1/main/moneyball-training-data.csv"))
 
 
 summary(money_train)
 ```
-
 
 ## Part 1
 
@@ -32,7 +35,6 @@ summary(money_train)
 ```
 
 ## Part 2: Mean Imputations for missing variables
-
 
 ```{r}
 ## Vars with missing observations include: TEAM_BATTING_SO; TEAM_BASERUN_SB; TEAM_BASERUN_CS; TEAM_BATTING_HBP; TEAM_PITCHING_SO; TEAM_FIELDING_DP
@@ -57,8 +59,8 @@ money_train_comp <- money_train$TEAM_BATTING_SO
 
 data.frame(money_train_comp)
 
-money_train_comp <- money_train %>% select(INDEX, TEAM_BATTING_SO, TEAM_BATTING_HBP)
-money_train_mod_comp <- money_train_mod %>% select(INDEX, TEAM_BATTING_SO, TEAM_BATTING_HBP)
+money_train_comp <- money_train %>% dplyr::select(INDEX, TEAM_BATTING_SO, TEAM_BATTING_HBP)
+money_train_mod_comp <- money_train_mod %>% dplyr::select(INDEX, TEAM_BATTING_SO, TEAM_BATTING_HBP)
   
 money_train_comp <- merge(money_train_comp, money_train_mod_comp, by = "INDEX")
 money_train_comp <- cbind(money_train_comp, TEAM_BATTING_SO_index)
@@ -111,6 +113,7 @@ ggplot(money_train_mod, aes(TEAM_BATTING_SO)) + geom_histogram() #Seems approxim
 ggplot(money_train_mod, aes(sample = TEAM_BATTING_SO)) + stat_qq() + stat_qq_line()
 shapiro.test(money_train_mod$TEAM_BATTING_SO) #Test indicates violations in normality
 ```
+
 ```{r}
 par(mfrow=c(3,3))
 hist(money_train_mod$TARGET_WINS, main = "TARGET_WINS") #Appears mostly normal with some potential skew
@@ -130,7 +133,9 @@ hist(money_train_mod$TEAM_PITCHING_SO, main ="TEAM_PITCHING_SO") #Heavy positive
 hist(money_train_mod$TEAM_FIELDING_E, main ="TEAM_FIELDING_E") #Heavy positive skew apparant
 hist(money_train_mod$TEAM_FIELDING_DP, main ="TEAM_FIELDING_DP") #Some negative skew apparant
 ```
+
 ### Correlation plots to test for collinearity among variables
+
 ```{r}
 cor <- cor(money_train_mod)
 
@@ -141,11 +146,14 @@ cor <- cor %>% mutate_all(~ ifelse(abs(.) < 0.5, NA, .))
 print(cor)
 ```
 
-Most of the variables are not highly correlated, but there are some potential predictors that are ~ 50-60% correlated. Most concerningly would be the ~90% correltion between TEAM_PITCHING_HR and TEAM_BATTING_HR. Because of the very high correlation between these variables, it may be best to avoid using them in the same model. Otherwise, it may be necessary to transform the variables via mean centering or PCA.
+Most of the variables are not highly correlated, but there are some potential predictors that are \~ 50-60% correlated. Most concerningly would be the \~90% correltion between TEAM_PITCHING_HR and TEAM_BATTING_HR. Because of the very high correlation between these variables, it may be best to avoid using them in the same model. Otherwise, it may be necessary to transform the variables via mean centering or PCA.
 
 ### Transformations & Outlier Removal (WE MAY NOT NEED THIS IF WE CHOOSE TO GO THE BOX-COX ROUTE; IF WE GO THE OUTLIER REMOVAL ROUTE, WE SHOULD BE SELECTIVE
+
 ### ABOUT WHICH OUTLIERS WE REMOVE)
+
 Because some variables are heavily affected by negative skew, we can systematically remove outliers that are present
+
 ```{r}
 money_train_mod <- money_train_mod %>% mutate(log_TEAM_FIELDING_E = log(TEAM_FIELDING_E))
 money_train_mod <- money_train_mod %>% mutate(log_TEAM_PITCHING_H = log(TEAM_PITCHING_H))
@@ -173,6 +181,9 @@ outliers_batting_bb <- boxplot(money_train_mod$TEAM_BATTING_BB, plot = F)$out
 outliers_batting_3b <- boxplot(money_train_mod$TEAM_BATTING_3B, plot = F)$out
 
 
+# Apply log transformation safely by adding 1 to avoid log(0)
+money_train_mod$log_TEAM_PITCHING_SO <- log(money_train_mod$TEAM_PITCHING_SO + 1)
+money_train_mod$log_TEAM_FIELDING_E <- log(money_train_mod$TEAM_FIELDING_E + 1)
 
 
 money_train_mod_2 <- money_train_mod
@@ -197,9 +208,113 @@ hist(money_train_mod_2$TEAM_BASERUN_BB)
 hist(money_train_mod_2$TEAM_BASERUN_3B)
 
 ```
-## Part 3
+
+## Part 3 – Building the Models
+
+### Model #1 –\> Basic Multiple Linear Regression
+
+For our first model, I decided to go with a basic multiple linear regression. I will choose variables that show the least violations of linear regression assumptions and make sure to keep minimal multicollinearity.
+
+The following is why I chose each variable:
+
+TEAM_BATTING_H –\> Number of hits a team gets increases the chances of them winning... Mostly normally distributed
+
+TEAM_BATTING_BB –\> Greater walks for batting team increases the chances of winning... That means the pitching team does not pitch properly (keep throwing ball instead of strike)
+
+log_TEAM_PITCHING_SO –\> A team that pitches strikeouts might influence winning on the pitching team. Since the log was more normally distributed, I decided to include this one.
+
+log_TEAM_FIELDING_E –\> A pitching team that commits errors more likely to lose,using log because it is more normally distributed.
+
 ```{r}
 ###Use a variation of this code if you intend to use a Box-Cox transformation
 #boxcox(outcome ~ predictors, data = money_train_mod_2)
+
+model1 = lm(TARGET_WINS ~ TEAM_BATTING_H + TEAM_BATTING_BB + log_TEAM_PITCHING_SO+ log_TEAM_FIELDING_E , data= money_train_mod)
+
+summary(model1)
+
+autoplot(model1)
 ```
 
+#### Interpreting Coefficients
+
+TEAM_BATTING_H and TEAM_BATTING_BB both had positive coefficients (and statistically significant p-values), which makes sense. As TEAM_BATTING_H and TEAM_BATTING_BB increases, the chances of the batting team winning increases.
+
+This makes sense in baseball world. As a batting team gets more hits, they have more chances of moving around the bases and scoring. Even if the batter hits a foul, as long as they do not get strikes out they can still get a hit and score (you can have 2 strikes and keep hitting fouls and still have a chance of getting a hit.)
+
+The walking makes sense as well. If the pitching team keeps throwing bad pitches (that keep being balls instead of strikes), and the batter has enough skill to not blindly swing at these bad pitches, the batter will walk and go to first base, automatically increasing the chances of them scoring.
+
+log_TEAM_PITCHING_SO has a positive coefficient but has a high p-value. This means that as the log(\# of strike outs the pitching team got) increases, so does the chances of the pitching team winning. This makes sense in terms of baseball. If a team has a good pitcher that throws good strikes, the chances of the other team winning decreases. Sometimes, there are even no-hitter games (where the batting team didn't even get a hit/ all strike outs). However, since the p-value was not significant, this relationship is possibly not as strong in influencing the win of a game.
+
+log_TEAM_FIELDING_E had a negative coefficient and a statistically significant p-value. As log(\# of fielding error) increases, the chances of that team winning decreases. This makes sense in the baseball context. If players on the fields are missing and not catching the ball properly, they give the batting team an advantage and they can score more (AKA pitching team more likely to lose).
+
+### Model #2 –\> Multiple Linear Regression with Interaction Terms
+
+To win in baseball, you need to have BOTH good defense and good offense.
+
+A team can have the best batters/ designated hitters... but what good is that if you have bad pitches/ players that can't throw and catch. You need a good mix of both to win.
+
+In this model, I perform a multiple regression using interaction terms. I am using the same predictors that I used above. Interaction terms in regression models allow us to explore how the effect of one variable on the outcome changes depending on the level of another variable. In the context of baseball, adding interaction terms between offensive and defensive statistics can help quantify the idea that the impact of having strong hitters (offense) on winning games might vary depending on the strength of the team's pitching (defense), and vice versa.
+
+```{r}
+model2 = lm(TARGET_WINS ~ TEAM_BATTING_H * TEAM_BATTING_BB + log_TEAM_PITCHING_SO* log_TEAM_FIELDING_E , data= money_train_mod)
+
+summary(model2)
+
+autoplot(model2)
+```
+
+The coefficient for TEAM_BATTING_H is positive (0.06802), indicating that an increase in team hits is associated with an increase in wins. This makes sense as more hits generally lead to more scoring opportunities.
+
+Similarly, the positive coefficient for TEAM_BATTING_BB suggests that teams that walk more win more. This makes sense.
+
+The negative coefficient for log_TEAM_PITCHING_SO might initially seem counterintuitive, as strikeouts are generally beneficial for pitchers. However, this effect is contextualized by its interaction with fielding errors. The benefits of high strike out number decreases if your team is making alot of errors (and letting the other team score). Even if you have a good pitcher, if your field players aren't good, you will lose.
+
+The negative coefficient for log_TEAM_FIELDING_E aligns with expectations, as more errors typically hurt a team's chances of winning.
+
+Interaction between TEAM_BATTING_H and TEAM_BATTING_BB: The negative term indicates that the positive effect of having more hits or walks on winning games diminishes slightly when both are high. Which means that if a team is already good at hitting, getting better at walks doesn't increase their wins as much as you'd expect.
+
+Interaction between log_TEAM_PITCHING_SO and log_TEAM_FIELDING_E: The positive coefficient means that even though teams that strike out a lot of batters but make many errors might seem at a disadvantage, these errors don't hurt them as much in terms of winning games.
+
+### 
+
+### Model #3
+
+In this model, I add TEAM_BASERUN_SB and TEAM_FIELDING_DP as two additional predictors.
+
+TEAM_BASERUN_SB is number of stolen bases and might influence wins (since players that successfully steal bases are literally closer to scoring).
+
+TEAM_FIELDING_DP tells us the number of double plays (or two outs in one play). Teams that have high numbers of double play are probably good in defense.'
+
+I am also adding interaction terms:
+
+TEAM_BATTING_H and TEAM_BASERUN_SB: explores how the effect of hits on winning is affected by the team's ability to steal bases (aggressive offensive strategy).
+
+TEAM_PITCHING_SO and TEAM_FIELDING_DP: examines how the effect of strikeouts on wins is influenced by the team's ability to execute double plays
+
+```{r}
+model3 = lm(TARGET_WINS ~ TEAM_BATTING_H + TEAM_BATTING_BB + TEAM_BASERUN_SB + TEAM_FIELDING_DP + log_TEAM_PITCHING_SO + log_TEAM_FIELDING_E + TEAM_BATTING_H:TEAM_BASERUN_SB + TEAM_PITCHING_SO:TEAM_FIELDING_DP, data = money_train_mod)
+
+
+summary(model3)
+
+autoplot(model3)
+```
+
+TEAM_BATTING_H and TEAM_BATTING_BB both had positive coefficients (and statistically significant p-values), which makes sense. As TEAM_BATTING_H and TEAM_BATTING_BB increases, the chances of the batting team winning increases.
+
+This makes sense in baseball world. As a batting team gets more hits, they have more chances of moving around the bases and scoring. Even if the batter hits a foul, as long as they do not get strikes out they can still get a hit and score (you can have 2 strikes and keep hitting fouls and still have a chance of getting a hit.)
+
+The walking makes sense as well. If the pitching team keeps throwing bad pitches (that keep being balls instead of strikes), and the batter has enough skill to not blindly swing at these bad pitches, the batter will walk and go to first base, automatically increasing the chances of them scoring.
+
+The TEAM_BASERUN_SB (stolen bases) predictor had a negative coefficient and was not statistically significant. This means that stolen bases alone do not impact a teams win. This makes sense. You can have increase numbers of stolen bases but that doesn't mean anything. For example, lets say a player steals 2 bases during an inning (and now is on 3rd base). If there is are 3 outs and that inning ends, those stolen bases would have been for nothing (did not lead the batting team closer to winning).
+
+The TEAM_FIELDING_DP (double play) predictor had a negative coefficient and also was not statistically significant. This also means that double play count doesn't really predict a teams ability to win. This kind of makes sense. A team with large double play count for instance might have less strike out count (since the opposing team got more hits that led to those double plays).
+
+log_TEAM_PITCHING_SO has a positive coefficient but has a high p-value. This means that as the log(\# of strike outs the pitching team got) increases, so does the chances of the pitching team winning. This makes sense in terms of baseball. If a team has a good pitcher that throws good strikes, the chances of the other team winning decreases. Sometimes, there are even no-hitter games (where the batting team didn't even get a hit/ all strike outs). However, since the p-value was not significant, this relationship is possibly not as strong in influencing the win of a game.
+
+log_TEAM_FIELDING_E had a negative coefficient and a statistically significant p-value. As log(\# of fielding error) increases, the chances of that team winning decreases. This makes sense in the baseball context. If players on the fields are missing and not catching the ball properly, they give the batting team an advantage and they can score more (AKA pitching team more likely to lose).
+
+The interaction coefficient between TEAM_BASERUN_SB and TEAM_BATTING_H was positive and not significant, meaning hits and stolen bases combined do not impact the wins of this model. This makes sense. In baseball, hits seem more important than stolen bases. Without hits, you can't even steal bases (unless you walk but there has to be an opportunity to steal created).
+
+The interaction coefficient between TEAM_FIELDING_DP and log_TEAM_PITCHING_SO was negative and significant. This means that pitching strikeouts and having alot of double plays contributes to winning. The negative coefficient makes sense. As more strikeouts are pitched, there is less of a chance of the opposing team getting a hit (which decreases your chances of having a double play). After all, double play happens when the batter hits (aka not a strike). But for a team that has less strikeouts, those double plays play an important role in preventing the other team from scoring (which increases your team from winning).
