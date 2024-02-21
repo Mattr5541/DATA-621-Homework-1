@@ -17,6 +17,7 @@ library(naniar)
 library(MASS)
 library(ggfortify)
 library(glmnet)
+library(ggpubr)
 
 set.seed(621)
 ```
@@ -34,7 +35,7 @@ summary(money_train)
 
 ```
 
-## Part 2: Mean Imputations for missing variables
+## Part 2: Median Imputations for missing variables
 
 ```{r}
 ## Vars with missing observations include: TEAM_BATTING_SO; TEAM_BASERUN_SB; TEAM_BASERUN_CS; TEAM_BATTING_HBP; TEAM_PITCHING_SO; TEAM_FIELDING_DP
@@ -51,25 +52,33 @@ TEAM_FIELDING_DP_index <- is.na(money_train$TEAM_FIELDING_DP)
 
 ### And now to impute
 
-money_train_mod <- money_train %>% impute_mean()
+money_train_mod <- money_train %>% missMethods::impute_median()
 summary(money_train_mod)
 
-### Now I will compare some variables to see if the mean imputation worked
+### Now I will compare some variables to see if the median imputation worked
 money_train_comp <- money_train$TEAM_BATTING_SO
 
 data.frame(money_train_comp)
 
-money_train_comp <- money_train %>% dplyr::select(INDEX, TEAM_BATTING_SO, TEAM_BATTING_HBP)
-money_train_mod_comp <- money_train_mod %>% dplyr::select(INDEX, TEAM_BATTING_SO, TEAM_BATTING_HBP)
+money_train_comp <- money_train %>% dplyr::select(INDEX, TEAM_BATTING_SO, TEAM_BASERUN_SB, TEAM_BATTING_HBP, TEAM_BASERUN_CS, TEAM_PITCHING_SO, TEAM_FIELDING_DP)
+money_train_mod_comp <- money_train_mod %>% dplyr::select(INDEX, TEAM_BATTING_SO, TEAM_BASERUN_SB, TEAM_BATTING_HBP, TEAM_BASERUN_CS, TEAM_PITCHING_SO,  TEAM_FIELDING_DP)
+
+money_train_index <- cbind(TEAM_BATTING_SO_index, TEAM_BASERUN_SB_index, TEAM_BASERUN_CS_index, TEAM_BATTING_HBP_index, TEAM_PITCHING_SO_index, TEAM_FIELDING_DP_index)
+money_train_index <- as.data.frame(money_train_index)
   
 money_train_comp <- merge(money_train_comp, money_train_mod_comp, by = "INDEX")
-money_train_comp <- cbind(money_train_comp, TEAM_BATTING_SO_index)
-money_train_comp <- cbind(money_train_comp, TEAM_BATTING_HBP_index)
+money_train_comp <- money_train_comp %>% cbind(money_train_index)
 
-ggplot(money_train_comp, aes(TEAM_BATTING_SO.y)) + geom_histogram()
+
+ggplot(money_train_comp, aes(TEAM_BATTING_SO.y, color = TEAM_BATTING_SO_index)) + geom_histogram()
+ggplot(money_train_comp, aes(TEAM_BASERUN_SB.y, color = TEAM_BASERUN_SB_index)) + geom_histogram()
+ggplot(money_train_comp, aes(TEAM_BASERUN_CS.y, color = TEAM_BASERUN_CS_index)) + geom_histogram()
 ggplot(money_train_comp, aes(TEAM_BATTING_HBP.y, color = TEAM_BATTING_HBP_index)) + geom_histogram() ##As we can see, this mean imputation method may not have 
 ##been entirely appropriate for this variable, since such a large proportion was missing (~88%). Everything else should be fine. I suggest we discard this var
 ##From our models, unless we decide to make a model using only the ~700 present observations, which could be interesting
+ggplot(money_train_comp, aes(TEAM_PITCHING_SO.y, color = TEAM_PITCHING_SO_index)) + geom_histogram()
+ggplot(money_train_comp, aes(TEAM_FIELDING_DP.y, color = TEAM_FIELDING_DP_index)) + geom_histogram()
+
 
 ```
 
@@ -77,41 +86,28 @@ ggplot(money_train_comp, aes(TEAM_BATTING_HBP.y, color = TEAM_BATTING_HBP_index)
 
 ```{r}
 ##TARGET_WINS
-ggplot(money_train_mod, aes(TARGET_WINS)) + geom_histogram() #Moslty normal with some negative skew
-ggplot(money_train_mod, aes(sample = TARGET_WINS)) + stat_qq() + stat_qq_line()
-shapiro.test(money_train_mod$TARGET_WINS) #Test indicates violations in normality
-
-
+q1 <- ggplot(money_train_mod, aes(sample = TARGET_WINS)) + stat_qq() + stat_qq_line() + labs(title = "TARGET_WINS")
 
 ##TEAM_BATTING_H
-ggplot(money_train_mod, aes(TEAM_BATTING_H)) + geom_histogram() #Moslty normal with some positive skew
-ggplot(money_train_mod, aes(sample = TEAM_BATTING_H)) + stat_qq() + stat_qq_line()
-shapiro.test(money_train_mod$TEAM_BATTING_H) #Test indicates violations in normality
+q2 <- ggplot(money_train_mod, aes(sample = TEAM_BATTING_H)) + stat_qq() + stat_qq_line() + labs(title = "TEAM_BATTING_H")
 
 ##TEAM_BATTING_2B 
-ggplot(money_train_mod, aes(TEAM_BATTING_2B)) + geom_histogram() #Moslty normal, but appears to have some skew
-ggplot(money_train_mod, aes(sample = TEAM_BATTING_2B)) + stat_qq() + stat_qq_line()
-shapiro.test(money_train_mod$TEAM_BATTING_2B) #Test indicates violations in normality
+q3 <- ggplot(money_train_mod, aes(sample = TEAM_BATTING_2B)) + stat_qq() + stat_qq_line() + labs(title = "TEAM_BATTING_2B")
 
 ##TEAM_BATTING_3B 
-ggplot(money_train_mod, aes(TEAM_BATTING_3B)) + geom_histogram() #Definitely positively skewed
-ggplot(money_train_mod, aes(sample = TEAM_BATTING_3B)) + stat_qq() + stat_qq_line()
-shapiro.test(money_train_mod$TEAM_BATTING_3B) #Test indicates violations in normality
+q4 <- ggplot(money_train_mod, aes(sample = TEAM_BATTING_3B)) + stat_qq() + stat_qq_line() + labs(title = "TEAM_BATTING_3B")
 
 ##TEAM_BATTING_HR 
-ggplot(money_train_mod, aes(TEAM_BATTING_HR)) + geom_histogram() #Doesn't seem normally distributed
-ggplot(money_train_mod, aes(sample = TEAM_BATTING_HR)) + stat_qq() + stat_qq_line()
-shapiro.test(money_train_mod$TEAM_BATTING_HR) #Test indicates violations in normality
+q5 <- ggplot(money_train_mod, aes(sample = TEAM_BATTING_HR)) + stat_qq() + stat_qq_line() + labs(title = "TEAM_BATTING_HR")
 
 ##TEAM_BATTING_BB
-ggplot(money_train_mod, aes(TEAM_BATTING_BB)) + geom_histogram() #Negatively skewed
-ggplot(money_train_mod, aes(sample = TEAM_BATTING_BB)) + stat_qq() + stat_qq_line()
-shapiro.test(money_train_mod$TEAM_BATTING_BB) #Test indicates violations in normality
+q6 <- ggplot(money_train_mod, aes(sample = TEAM_BATTING_BB)) + stat_qq() + stat_qq_line() + labs(title = "TEAM_BATTING_BB")
 
 ##TEAM_BATTING_SO
-ggplot(money_train_mod, aes(TEAM_BATTING_SO)) + geom_histogram() #Seems approximately normal
-ggplot(money_train_mod, aes(sample = TEAM_BATTING_SO)) + stat_qq() + stat_qq_line()
-shapiro.test(money_train_mod$TEAM_BATTING_SO) #Test indicates violations in normality
+q7 <- ggplot(money_train_mod, aes(sample = TEAM_BATTING_SO)) + stat_qq() + stat_qq_line() + labs(title = "TEAM_BATTING_SO")
+
+ggarrange(q1, q2, q3, q4, q5, q6, q7)
+
 ```
 
 ```{r}
@@ -146,7 +142,7 @@ cor <- cor %>% mutate_all(~ ifelse(abs(.) < 0.5, NA, .))
 print(cor)
 ```
 
-Most of the variables are not highly correlated, but there are some potential predictors that are \~ 50-60% correlated. Most concerningly would be the \~90% correltion between TEAM_PITCHING_HR and TEAM_BATTING_HR. Because of the very high correlation between these variables, it may be best to avoid using them in the same model. Otherwise, it may be necessary to transform the variables via mean centering or PCA.
+Most of the variables are not highly correlated, but there are some potential predictors that are \~ 50-60% correlated. Most concerningly would be the \~90% correlation between TEAM_PITCHING_HR and TEAM_BATTING_HR. Because of the very high correlation between these variables, it may be best to avoid using them in the same model. Otherwise, it may be necessary to transform the variables via mean centering or PCA.
 
 ### Transformations & Outlier Removal (WE MAY NOT NEED THIS IF WE CHOOSE TO GO THE BOX-COX ROUTE; IF WE GO THE OUTLIER REMOVAL ROUTE, WE SHOULD BE SELECTIVE
 
@@ -155,17 +151,38 @@ Most of the variables are not highly correlated, but there are some potential pr
 Because some variables are heavily affected by negative skew, we can systematically remove outliers that are present
 
 ```{r}
+# Apply log transformations; and safely by add 1 to avoid log(0) in variables with 0's
 money_train_mod <- money_train_mod %>% mutate(log_TEAM_FIELDING_E = log(TEAM_FIELDING_E))
 money_train_mod <- money_train_mod %>% mutate(log_TEAM_PITCHING_H = log(TEAM_PITCHING_H))
 money_train_mod <- money_train_mod %>% mutate(log_TEAM_PITCHING_BB = log(TEAM_PITCHING_BB))
 money_train_mod <- money_train_mod %>% mutate(log_TEAM_PITCHING_SO = log(TEAM_PITCHING_SO))
+money_train_mod <- money_train_mod %>% mutate(log_TEAM_BASERUN_SB = log(TEAM_BASERUN_SB))
+money_train_mod <- money_train_mod %>% mutate(log_TEAM_BATTING_3B = log(TEAM_BATTING_3B))
+money_train_mod <- money_train_mod %>% mutate(log_TEAM_BATTING_HR = log(TEAM_BATTING_HR))
+money_train_mod <- money_train_mod %>% mutate(log_TEAM_BATTING_SO = log(TEAM_BATTING_SO))
+money_train_mod <- money_train_mod %>% mutate(log_TEAM_BASERUN_CS = log(TEAM_BASERUN_CS))
+money_train_mod <- money_train_mod %>% mutate(log_TEAM_FIELDING_DP = log(TEAM_FIELDING_DP))
+money_train_mod$log_TEAM_BASERUN_CS <- log(money_train_mod$TEAM_BASERUN_CS + 1)
+money_train_mod$log_TEAM_BATTING_HR <- log(money_train_mod$TEAM_BATTING_HR + 1)
+money_train_mod$log_TEAM_BATTING_SO <- log(money_train_mod$TEAM_BATTING_SO + 1)
+money_train_mod$log_TEAM_BATTING_3B <- log(money_train_mod$TEAM_BATTING_3B + 1)
+money_train_mod$log_TEAM_BASERUN_SB <- log(money_train_mod$TEAM_BASERUN_SB + 1)
+money_train_mod$log_TEAM_PITCHING_SO <- log(money_train_mod$TEAM_PITCHING_SO + 1)
+money_train_mod$log_TEAM_FIELDING_E <- log(money_train_mod$TEAM_FIELDING_E + 1)
+money_train_mod$log_TEAM_PITCHING_BB <- log(money_train_mod$TEAM_PITCHING_BB + 1)
 
-
-
+par(mfrow=c(3,3))
 hist(money_train_mod$log_TEAM_FIELDING_E)
 hist(money_train_mod$log_TEAM_PITCHING_H)
 hist(money_train_mod$log_TEAM_PITCHING_BB)
 hist(money_train_mod$log_TEAM_PITCHING_SO)
+hist(money_train_mod$log_TEAM_BASERUN_SB)
+hist(money_train_mod$log_TEAM_BATTING_3B)
+hist(money_train_mod$log_TEAM_BATTING_HR)
+hist(money_train_mod$log_TEAM_BATTING_SO)
+hist(money_train_mod$log_TEAM_BASERUN_CS)
+hist(money_train_mod$log_TEAM_FIELDING_DP)
+
 
 
 ##############If we go this route, modify the outlier removal in accordance with the models you intend to build, otherwise, everything could end up being deleted
@@ -181,10 +198,6 @@ outliers_batting_bb <- boxplot(money_train_mod$TEAM_BATTING_BB, plot = F)$out
 outliers_batting_3b <- boxplot(money_train_mod$TEAM_BATTING_3B, plot = F)$out
 
 
-# Apply log transformation safely by adding 1 to avoid log(0)
-money_train_mod$log_TEAM_PITCHING_SO <- log(money_train_mod$TEAM_PITCHING_SO + 1)
-money_train_mod$log_TEAM_FIELDING_E <- log(money_train_mod$TEAM_FIELDING_E + 1)
-
 
 money_train_mod_2 <- money_train_mod
 money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$log_TEAM_FIELDING_E %in% outliers_Fielding),]
@@ -193,19 +206,33 @@ money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$log_TEAM_PITCHIN
 money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$log_TEAM_PITCHING_SO %in% outliers_pitching_SO),]
 money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$TEAM_BASERUN_CS %in% outliers_baserun_cs),]
 money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$TEAM_BASERUN_SB %in% outliers_baserun_sb),]
-money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$TEAM_BASERUN_SO %in% outliers_batting_so),]
-money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$TEAM_BASERUN_BB %in% outliers_batting_bb),]
-money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$TEAM_BASERUN_3B %in% outliers_batting_3b),]
+#money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$TEAM_BATTING_SO %in% outliers_batting_so),] #This causes problems for some reason
+money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$TEAM_BATTING_BB %in% outliers_batting_bb),]
+money_train_mod_2 <- money_train_mod_2[-which(money_train_mod_2$TEAM_BATTING_3B %in% outliers_batting_3b),]
 
 par(mfrow=c(3,3))
-hist(money_train_mod_2$log_TEAM_FIELDING_E)
-hist(money_train_mod_2$log_TEAM_PITCHING_H)
-hist(money_train_mod_2$log_TEAM_PITCHING_BB)
-hist(money_train_mod_2$log_TEAM_PITCHING_SO)
-hist(money_train_mod_2$TEAM_BASERUN_CS)
-hist(money_train_mod_2$TEAM_BASERUN_SO)
-hist(money_train_mod_2$TEAM_BASERUN_BB)
-hist(money_train_mod_2$TEAM_BASERUN_3B)
+hist(money_train_mod_2$log_TEAM_FIELDING_E, main = "log_TEAM_FIELDING_E")
+hist(money_train_mod_2$log_TEAM_PITCHING_H, main = "log_TEAM_PITCHING_H")
+hist(money_train_mod_2$log_TEAM_PITCHING_BB, main = "log_TEAM_PITCHING_BB")
+hist(money_train_mod_2$log_TEAM_PITCHING_SO, main = "log_TEAM_PITCHING_SO")
+hist(money_train_mod_2$TEAM_BASERUN_CS, main = "TEAM_BASERUN_CS")
+hist(money_train_mod_2$TEAM_BATTING_SO, main = "TEAM_BATTING_SO")
+hist(money_train_mod_2$TEAM_BATTING_BB, main = "TEAM_BATTING_BB")
+hist(money_train_mod_2$TEAM_BATTING_3B, main = "TEAM_BATTING_3B")
+
+par(mfrow=c(3,3))
+hist(money_train_mod$log_TEAM_FIELDING_E, main = "log_TEAM_FIELDING_E")
+hist(money_train_mod$log_TEAM_PITCHING_H, main = "log_TEAM_PITCHING_H")
+hist(money_train_mod$log_TEAM_PITCHING_BB, main = "log_TEAM_PITCHING_BB")
+hist(money_train_mod$log_TEAM_PITCHING_SO, main = "log_TEAM_PITCHING_SO")
+hist(money_train_mod$TEAM_BASERUN_CS, main = "TEAM_BASERUN_CS")
+hist(money_train_mod$TEAM_BATTING_SO, main = "TEAM_BATTING_SO")
+hist(money_train_mod$TEAM_BATTING_BB, main = "TEAM_BATTING_BB")
+hist(money_train_mod$TEAM_BATTING_3B, main = "TEAM_BATTING_3B")
+
+test <- money_train_mod_2 %>% mutate(log_TEAM_BATTING_3B = log(TEAM_BATTING_3B))
+
+hist(test$log_TEAM_BATTING_3B)
 
 ```
 
@@ -293,7 +320,7 @@ TEAM_BATTING_H and TEAM_BASERUN_SB: explores how the effect of hits on winning i
 TEAM_PITCHING_SO and TEAM_FIELDING_DP: examines how the effect of strikeouts on wins is influenced by the team's ability to execute double plays
 
 ```{r}
-model3 = lm(TARGET_WINS ~ TEAM_BATTING_H + TEAM_BATTING_BB + TEAM_BASERUN_SB + TEAM_FIELDING_DP + log_TEAM_PITCHING_SO + log_TEAM_FIELDING_E + TEAM_BATTING_H:TEAM_BASERUN_SB + TEAM_PITCHING_SO:TEAM_FIELDING_DP, data = money_train_mod)
+model3 = lm(TARGET_WINS ~ TEAM_BATTING_H + TEAM_BATTING_BB + TEAM_BASERUN_SB + log_TEAM_FIELDING_DP + log_TEAM_PITCHING_SO + log_TEAM_FIELDING_E + TEAM_BATTING_H:log_TEAM_BASERUN_SB + log_TEAM_PITCHING_SO:log_TEAM_FIELDING_DP, data = money_train_mod)
 
 
 summary(model3)
@@ -363,23 +390,6 @@ print(BIC_values)
 Again, similarly to the results yielded using the AIC comparison, Model 3 has the
 lowest score by a significant margin.
 
-Note: I do acknowledge the warning received when running both the AIC and BIC
-comparisons, so here is a quick check to show the number of observations associated
-with each model.
-
-```{r}
-# Check the number of observations for each model
-n_obs_model1 <- nobs(model1)
-n_obs_model2 <- nobs(model2)
-n_obs_model3 <- nobs(model3)
-
-# Print the number of observations for each model
-print(n_obs_model1)
-print(n_obs_model2)
-print(n_obs_model3)
-
-print((n_obs_model1-n_obs_model3)/n_obs_model1)
-```
 
 I do acknowledge that there is an about 15.6% size difference in the number of 
 observations, and I also acknowledge that running both AIC and BIC comparisons 
@@ -436,16 +446,27 @@ evaluation_join = evaluation %>%
 df = rbind(subset(money_train_join, select =-TARGET_WINS), evaluation_join)
 
 df <- df %>% 
-  impute_mean() %>%
+  missMethods::impute_median() %>%
   filter(train_or_test == 'test')
 
 df <- df %>% mutate(log_TEAM_FIELDING_E = log(TEAM_FIELDING_E))
 df <- df %>% mutate(log_TEAM_PITCHING_H = log(TEAM_PITCHING_H))
 df <- df %>% mutate(log_TEAM_PITCHING_BB = log(TEAM_PITCHING_BB))
 df <- df %>% mutate(log_TEAM_PITCHING_SO = log(TEAM_PITCHING_SO))
-
+df <- df %>% mutate(log_TEAM_BASERUN_SB = log(TEAM_BASERUN_SB))
+df <- df %>% mutate(log_TEAM_BATTING_3B = log(TEAM_BATTING_3B))
+df <- df %>% mutate(log_TEAM_BATTING_HR = log(TEAM_BATTING_HR))
+df <- df %>% mutate(log_TEAM_BATTING_SO = log(TEAM_BATTING_SO))
+df <- df %>% mutate(log_TEAM_BASERUN_CS = log(TEAM_BASERUN_CS))
+df <- df %>% mutate(log_TEAM_FIELDING_DP = log(TEAM_FIELDING_DP))
+df$log_TEAM_BASERUN_CS <- log(df$TEAM_BASERUN_CS + 1)
+df$log_TEAM_BATTING_HR <- log(df$TEAM_BATTING_HR + 1)
+df$log_TEAM_BATTING_SO <- log(df$TEAM_BATTING_SO + 1)
+df$log_TEAM_BATTING_3B <- log(df$TEAM_BATTING_3B + 1)
+df$log_TEAM_BASERUN_SB <- log(df$TEAM_BASERUN_SB + 1)
 df$log_TEAM_PITCHING_SO <- log(df$TEAM_PITCHING_SO + 1)
 df$log_TEAM_FIELDING_E <- log(df$TEAM_FIELDING_E + 1)
+df$log_TEAM_PITCHING_BB <- log(df$TEAM_PITCHING_BB + 1)
 ```
 
 Now, with my test data set prepared, I can run predictions:
