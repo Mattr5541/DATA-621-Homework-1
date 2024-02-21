@@ -318,3 +318,158 @@ log_TEAM_FIELDING_E had a negative coefficient and a statistically significant p
 The interaction coefficient between TEAM_BASERUN_SB and TEAM_BATTING_H was positive and not significant, meaning hits and stolen bases combined do not impact the wins of this model. This makes sense. In baseball, hits seem more important than stolen bases. Without hits, you can't even steal bases (unless you walk but there has to be an opportunity to steal created).
 
 The interaction coefficient between TEAM_FIELDING_DP and log_TEAM_PITCHING_SO was negative and significant. This means that pitching strikeouts and having alot of double plays contributes to winning. The negative coefficient makes sense. As more strikeouts are pitched, there is less of a chance of the opposing team getting a hit (which decreases your chances of having a double play). After all, double play happens when the batter hits (aka not a strike). But for a team that has less strikeouts, those double plays play an important role in preventing the other team from scoring (which increases your team from winning).
+
+## Part 4: SELECT MODELS
+
+The objective of this project is to build a multiple linear regression model on 
+the training data to predict the number of wins for the team. It is ideal to build
+a model with a lower level of complexity that can accomplish a higher level of 
+accuracy, and if we can achieve a higher level of accuracy with a more complex 
+model, that added complexity may be necessary.
+
+In "Part 3" our team created three different models: a Basic Multiple Linear 
+Regression, a Multiple Linear Regression with Interaction Terms, and a model that 
+took into account a few additional variables (TEAM_BASERUN_SB and TEAM_FIELDING_DP)
+with the same basic concepts (Multiple Regression with Interactive Relationships) 
+applied in "Model 2."
+
+When looking at the three models predictive metrics, I want to start off with a 
+simple AIC (Akaike Information Criterion) comparison. For context, when comparing
+models' AIC values, the model with the lowest AIC value is generally the best 
+model in terms of "goodness of fit."
+
+```{r}
+AIC_values <- AIC(model1, model2, model3)
+
+print(AIC_values)
+```
+
+After running instance of AIC() on all three models we get a result of very similar
+scores with different degrees of freedom. Looking at the instance of AIC() above, 
+my initial choice would be to choose Model 3. Model 3 is definitely the most complex
+of all the three models ran; however, it also yields the minimum AIC score of the
+three models ran in this project.
+
+I also want to go ahead and compare the three models using a BIC comparison (Bayesian
+Information Criterion). Similarly to AIC, we are looking for the lowest score,
+though we do want to consider the trade-offs presented by model complexity.
+
+```{r}
+BIC_values <- BIC(model1, model2, model3)
+
+print(BIC_values)
+```
+
+Again, similarly to the results yielded using the AIC comparison, Model 3 has the
+lowest score by a significant margin.
+
+Note: I do acknowledge the warning received when running both the AIC and BIC
+comparisons, so here is a quick check to show the number of observations associated
+with each model.
+
+```{r}
+# Check the number of observations for each model
+n_obs_model1 <- nobs(model1)
+n_obs_model2 <- nobs(model2)
+n_obs_model3 <- nobs(model3)
+
+# Print the number of observations for each model
+print(n_obs_model1)
+print(n_obs_model2)
+print(n_obs_model3)
+
+print((n_obs_model1-n_obs_model3)/n_obs_model1)
+```
+
+I do acknowledge that there is an about 15.6% size difference in the number of 
+observations, and I also acknowledge that running both AIC and BIC comparisons 
+yield a clear favorite in terms of goodness of fit. I will not base my final decision
+of model choice based on these metrics and I will use there comparisons to inform
+the ultimate decision.
+
+Now, I want to look at the $R^2$ values for the respective models, so that I can 
+assess how the models deal with variance present in the data.
+
+```{r}
+summary(model1)$r.squared
+summary(model2)$r.squared
+summary(model3)$r.squared
+```
+
+When comparing $R^2$ values for the respective models, it is clear that Model 3
+yields the best $R^2$ value.
+
+Now, I want to check the RMSE for each model:
+
+```{r}
+predictions_train_1 = predict(model1, newdata = money_train_mod)
+predictions_train_2 = predict(model2, newdata = money_train_mod)
+predictions_train_3 = predict(model3, newdata = money_train_mod)
+
+rmse1 = sqrt(mean(na.omit(predictions_train_1 - money_train_mod$TARGET_WINS)^2))
+rmse2 = sqrt(mean(na.omit(predictions_train_2 - money_train_mod$TARGET_WINS)^2))
+rmse3 = sqrt(mean(na.omit(predictions_train_3 - money_train_mod$TARGET_WINS)^2))
+
+print(rmse1)
+print(rmse2)
+print(rmse3)
+```
+
+Based on these RMSE values, again, it seems that Model 3 is the best predictor (
+the RMSE value for Model 3 is the lowest).
+
+Considering the results from the comparison of AIC, BIC, R-squared values and RMSE
+values, it seems that Model 3 is the best fit.
+
+Now, before I check the model's respective performance on the evaluation data, I 
+have to prepare my model evaluation data set.
+
+```{r}
+evaluation = read_csv('moneyball-evaluation-data.csv')
+
+money_train_join = money_train %>%
+  mutate(train_or_test = 'train')
+
+evaluation_join = evaluation %>%
+  mutate(train_or_test = 'test')
+
+df = rbind(subset(money_train_join, select =-TARGET_WINS), evaluation_join)
+
+df <- df %>% 
+  impute_mean() %>%
+  filter(train_or_test == 'test')
+
+df <- df %>% mutate(log_TEAM_FIELDING_E = log(TEAM_FIELDING_E))
+df <- df %>% mutate(log_TEAM_PITCHING_H = log(TEAM_PITCHING_H))
+df <- df %>% mutate(log_TEAM_PITCHING_BB = log(TEAM_PITCHING_BB))
+df <- df %>% mutate(log_TEAM_PITCHING_SO = log(TEAM_PITCHING_SO))
+
+df$log_TEAM_PITCHING_SO <- log(df$TEAM_PITCHING_SO + 1)
+df$log_TEAM_FIELDING_E <- log(df$TEAM_FIELDING_E + 1)
+```
+
+Now, with my test data set prepared, I can run predictions:
+
+#### Model 1 Predictions:
+
+```{r}
+predictions_1 = predict(model1, newdata = df)
+
+print(predictions_1)
+```
+
+#### Model 2 Predictions:
+
+```{r}
+predictions_2 = predict(model2, newdata = df)
+
+print(predictions_2)
+```
+
+#### Model 3 Predictions:
+
+```{r}
+predictions_3 = predict(model3, newdata = df)
+
+print(predictions_3)
+```
