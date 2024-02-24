@@ -18,6 +18,7 @@ library(MASS)
 library(ggfortify)
 library(glmnet)
 library(ggpubr)
+library(corrplot)
 
 set.seed(621)
 ```
@@ -29,11 +30,63 @@ money_train <- read.csv(url("https://raw.githubusercontent.com/Mattr5541/DATA-62
 summary(money_train)
 ```
 
-## Part 1
+## Part 1: Data Exploration
+The money training dataset contains 2,276 variables and 17 elements, including the INDEX or identifying variable, TARGET_WINS, the response variable, and 15 explanatory variables. The variable types are numeric values represented as integers. Six variables have missing values and will be imputed in part two. The variable with the most missing variables is TEAM_BATTING_HBP (batters hit by pitch). 
 
 ```{r}
+dim(money_train)
+```
+```{r}
+colSums(is.na(money_train))
+```
+The summary data also states the mean and median for reference, many variables have  similar values, and when the mean and median are very different it suggests the dataset is skewed. The Box plots below visualize these values and show the spread of the data. The boxplots also show many outliers in most of the variables. Additionally, histogram charts can be used to view the skewness of the variables. Both these visuals confirm that the response variable seems to have a normal distribution. While, many variables seem to have a right skew, and some have a bimodal distribution. 
+
+```{r}
+#box plot not including the index column
+money_train %>%
+  gather(variable, value, TARGET_WINS:TEAM_FIELDING_DP) %>%
+  ggplot(., aes(x= variable, y=value)) + 
+  geom_boxplot() +
+  facet_wrap(~variable, scales ="free", ncol = 4) +
+  labs(x = element_blank(), y = element_blank())
+```
+```{r}
+money_train %>%
+  keep(is.numeric) %>%                     
+  gather(key, value, TARGET_WINS:TEAM_FIELDING_DP) %>%                             
+  ggplot(aes(value)) +                     
+    facet_wrap(~ key, scales = "free") +  
+    geom_histogram(bins = 35)           
+```
+The target variable is the response variable 'TARGET_WINS'. The scatter plots below show the visual of all other variables, the spread of their data and the correlation line to observe the relationship to the target variable. The sorted_correlation lists the correlation metrics from highest to lowest, indicating these variables are the most positively correlated with results of .46 or above TEAM_PITCHING_H, TEAM_BATTING_H, TEAM_BATTING_BB, and TEAM_PITCHING_BB. To assess if variables are correlated to other variables in the dataset a correlation matrix, with the coefficients added, is also shown below. This will come in handy when trying to avoid collinearity.  
+
+```{r}
+money_train <- money_train[, -1]
+money_train %>% 
+  gather(variable, value, -TARGET_WINS) %>%
+  ggplot(., aes(value, TARGET_WINS)) + 
+  geom_point(fill = "blue", color="blue") + 
+  geom_smooth(method = "lm", se = FALSE, color = "black") + 
+  facet_wrap(~variable, scales ="free", ncol = 4) +
+  labs(x = element_blank(), y = "Wins") 
+```
+```{r}
+# sorted correlation of explanatory variables correlated to TARGET_WINS, response variables. 
+correlation_matrix <- cor(drop_na(money_train))
+correlation_coefficients <- correlation_matrix[, 1]
+sorted_correlation <- sort(correlation_coefficients, decreasing = TRUE)
+print(sorted_correlation)
 
 ```
+```{r}
+correlation_matrix <- cor(drop_na(money_train))
+corrplot(correlation_matrix, method = "color", 
+         addgrid.col = NA, tl.col = "black", tl.srt = 45,
+         addCoef.col = "black",
+         tl.cex = 0.5,
+         number.cex = 0.5) 
+```
+
 
 ## Part 2: Median Imputations for missing variables
 
