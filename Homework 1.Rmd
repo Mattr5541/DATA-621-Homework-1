@@ -398,7 +398,7 @@ print(BIC_values)
 ```
 
 Again, similarly to the results yielded using the AIC comparison, Model 3 has the
-lowest score by a significant margin.
+lowest score.
 
 
 I do acknowledge that there is an about 15.6% size difference in the number of 
@@ -426,20 +426,25 @@ predictions_train_1 = predict(model1, newdata = money_train_mod)
 predictions_train_2 = predict(model2, newdata = money_train_mod)
 predictions_train_3 = predict(model3, newdata = money_train_mod)
 
-rmse1 = sqrt(mean(na.omit(predictions_train_1 - money_train_mod$TARGET_WINS)^2))
-rmse2 = sqrt(mean(na.omit(predictions_train_2 - money_train_mod$TARGET_WINS)^2))
-rmse3 = sqrt(mean(na.omit(predictions_train_3 - money_train_mod$TARGET_WINS)^2))
+rmse1 = sqrt(mean(predictions_train_1 - money_train_mod$TARGET_WINS)^2)
+rmse2 = sqrt(mean(predictions_train_2 - money_train_mod$TARGET_WINS)^2)
+rmse3 = sqrt(mean(predictions_train_3 - money_train_mod$TARGET_WINS)^2)
 
 print(rmse1)
 print(rmse2)
 print(rmse3)
 ```
 
-Based on these RMSE values, again, it seems that Model 3 is the best predictor (
-the RMSE value for Model 3 is the lowest).
+Based on these RMSE values, it does not seem that there is a very clear model that
+serves as a best predictor. The RMSE values are all at essentially zero, which is 
+rather ideal for model performance and when comparing models not super ideal as 
+there doesn't seem to be much differentiation when it comes the RMSE metric and 
+therefore RMSE does not really point out any particular model as the ideal choice
 
 Considering the results from the comparison of AIC, BIC, R-squared values and RMSE
-values, it seems that Model 3 is the best fit.
+values, it seems that Model 3 is the best fit. We do understand that model 3 is 
+the most complex and with an ideal RMSE, the lowest AIC and BIC scores and the 
+highest $R^2$, model 3 seems to be a good choice.
 
 Now, before I check the model's respective performance on the evaluation data, I 
 have to prepare my model evaluation data set.
