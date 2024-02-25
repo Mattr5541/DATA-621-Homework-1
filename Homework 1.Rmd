@@ -120,8 +120,6 @@ money_train_mod <- money_train_mod %>% mutate(INDEX = seq_len(nrow(money_train_m
 ### Now I will compare some variables to see if the median imputation worked
 money_train_comp <- money_train$TEAM_BATTING_SO
 
-data.frame(money_train_comp)
-
 money_train_comp <- money_train %>% dplyr::select(INDEX, TEAM_BATTING_SO, TEAM_BASERUN_SB, TEAM_BATTING_HBP, TEAM_BASERUN_CS, TEAM_PITCHING_SO, TEAM_FIELDING_DP)
 money_train_mod_comp <- money_train_mod %>% dplyr::select(INDEX, TEAM_BATTING_SO, TEAM_BASERUN_SB, TEAM_BATTING_HBP, TEAM_BASERUN_CS, TEAM_PITCHING_SO,  TEAM_FIELDING_DP)
 
