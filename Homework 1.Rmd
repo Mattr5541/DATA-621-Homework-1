@@ -448,7 +448,7 @@ Now, before I check the model's respective performance on the evaluation data, I
 have to prepare my model evaluation data set.
 
 ```{r, echo = FALSE}
-evaluation = read_csv('moneyball-evaluation-data.csv')
+evaluation = read_csv('https://raw.githubusercontent.com/Mattr5541/DATA-621-Homework-1/main/moneyball-training-data.csv')
 
 money_train_join = money_train %>%
   mutate(train_or_test = 'train')
